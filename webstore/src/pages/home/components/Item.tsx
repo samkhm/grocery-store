@@ -30,9 +30,9 @@ export default function Item({item}) {
             <button
               className="
                 mt-3 w-full py-1.5 text-sm
-                bg-green-500 text-white rounded-lg
+                bg-green-500 text-white rounded-lg                
                 hover:bg-green-600 transition
-                opacity-0 group-hover:opacity-100
+                opacity-2group-hover:opacity-100
               "
             >
               Add to Cart
