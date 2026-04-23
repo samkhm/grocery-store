@@ -4,71 +4,94 @@ const jwt = require("jsonwebtoken");
 
 exports.register = async (req, res) => {
   try {
-    const { first_name, last_name, email, phone, password, address } = req.body;
+    const { firstName, lastName, email, phoneNumber, password } = req.body;
 
     const cleaned = {
-      first_name: first_name?.trim(),
-      last_name: last_name?.trim(),
+      first_name: firstName?.trim(),
+      last_name: lastName?.trim(),
       email: email?.trim(),
-      phone: phone?.trim(),
-      address: address?.trim(),
+      phone: phoneNumber?.trim(),
       password: password?.trim(),
     };
 
-    if (Objects.values(cleaned).some((v) => !v)) {
-      return res
-        .status(400)
-        .json({ success: false, message: "All inputs required!" });
+    // Validate required fields only
+    if (Object.values(cleaned).some((v) => !v)) {
+      return res.status(400).json({
+        success: false,
+        message: "All required fields must be filled",
+      });
     }
 
-    if (password.length < 6) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Password too short!" });
+    // Password rule
+    if (cleaned.password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
     }
 
+    // Check existing user
     const userExist = await User.findOne({
-      $or: [{ email: email.trim() }, { phone: phone.trim() }],
+      $or: [
+        { email: cleaned.email },
+        { phone: cleaned.phone }
+      ],
     });
 
     if (userExist) {
       return res.status(400).json({
+        success: false,
         message:
-          userExist.email === email ? "Email registered" : "Phone number taken",
+          userExist.email === cleaned.email
+            ? "Email already registered"
+            : "Phone number already taken",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash password
+    const hashedPassword = await bcrypt.hash(cleaned.password, 10);
 
-    const data = {
-      first_name: first_name.trim(),
-      last_name: last_name.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
+    // Create user (NO address yet)
+    const savedUser = await User.create({
+      first_name: cleaned.first_name,
+      last_name: cleaned.last_name,
+      email: cleaned.email,
+      phone: cleaned.phone,
       password: hashedPassword,
-      address: address.trim(),
-    };
+      address: [], // optional default
+    });
 
-    const savedUser = await User.create(data);
-
+    // Generate token
     const token = jwt.sign(
-      { id: savedUser._id, role: savedUser.role, email: savedUser.email },
-      process.env.JWT_SECRET,
       {
-        expiresIn: "24",
+        id: savedUser._id,
+        role: savedUser.role,
+        email: savedUser.email,
       },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
     );
 
-    const safeUser = savedUser.toObject();
-    delete safeUser.password;
+    // Safe response
+    const safeUser = {
+      _id: savedUser._id,
+      first_name: savedUser.first_name,
+      last_name: savedUser.last_name,
+      email: savedUser.email,
+      phone: savedUser.phone,
+      role: savedUser.role,
+      address: savedUser.address,
+      createdAt: savedUser.createdAt,
+    };
 
-    return res.status(200).json({
+    return res.status(201).json({
       success: true,
+      message: "User registered successfully",
       token,
       user: safeUser,
-      massage: "User created!",
     });
   } catch (error) {
+    console.error(error);
     return res.status(500).json({
       success: false,
       message: "Server error",
